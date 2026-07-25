@@ -100,31 +100,140 @@ observable behavior change. The same `MetricID` pattern applies mechanically onc
 
 ## Usage
 
-Build the application:
-```shell
+### Prerequisites
+
+- Go 1.26+
+- Docker Desktop (required for ClickHouse and integration tests)
+
+### Start ClickHouse
+
+The easiest way to start a local ClickHouse instance is with Docker Compose.
+
+```bash
+docker compose up -d
+```
+
+This creates a ClickHouse instance with:
+
+| Property | Value |
+|----------|-------|
+| Host | localhost |
+| Native Port | 9000 |
+| HTTP Port | 8123 |
+| Database | default |
+| Username | app |
+| Password | password |
+
+Verify ClickHouse is running:
+
+```bash
+docker exec -it clickhouse clickhouse-client \
+    --user app \
+    --password password
+```
+
+### Build
+
+```bash
 go build ./...
 ```
 
-Run the application (requires a reachable ClickHouse instance; see flags below):
-```shell
+### Run
+
+```bash
 go run . \
   -listenAddr=localhost:4317 \
   -clickhouseAddr=localhost:9000 \
   -clickhouseDatabase=default \
-  -clickhouseUsername=default \
-  -clickhousePassword=""
+  -clickhouseUsername=app \
+  -clickhousePassword=password
 ```
 
-Tables are created automatically at startup if they don't already exist.
+The application automatically:
 
-Run unit tests:
-```shell
+- connects to ClickHouse
+- creates all required tables if they do not exist
+- starts the OTLP gRPC server on port 4317
+
+### Unit tests
+
+```bash
 go test ./...
 ```
 
-Run integration tests (requires Docker; spins up a real ClickHouse container via testcontainers-go):
-```shell
-go test -tags integration ./...
+### Integration tests
+
+Integration tests require Docker. They automatically start a temporary ClickHouse instance using Testcontainers and clean it up afterwards.
+
+```bash
+make test-integration
+```
+
+or
+
+```bash
+go test -tags integration -count=1 ./...
+```
+
+### Verify the database
+
+Connect to ClickHouse:
+
+```bash
+docker exec -it clickhouse clickhouse-client \
+    --user app \
+    --password password
+```
+
+Show tables:
+
+```sql
+SHOW TABLES;
+```
+
+View metadata:
+
+```sql
+SELECT * FROM otel_metric_metadata;
+```
+
+View Gauge metrics:
+
+```sql
+SELECT * FROM otel_metrics_gauge;
+```
+
+View Sum metrics:
+
+```sql
+SELECT * FROM otel_metrics_sum;
+```
+
+---
+
+## Troubleshooting
+
+### Authentication failed
+
+If you see
+
+```
+Authentication failed
+```
+
+ensure ClickHouse was started using the provided `docker-compose.yml` and that the application is using:
+
+```
+-clickhouseUsername=app
+-clickhousePassword=password
+```
+
+### Integration tests fail
+
+Ensure Docker Desktop is running before executing
+
+```bash
+make test-integration
 ```
 
 ## References

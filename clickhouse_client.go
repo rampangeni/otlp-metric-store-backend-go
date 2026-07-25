@@ -79,7 +79,17 @@ func (s *ClickHouseMetricsStore) InsertMetadata(ctx context.Context, rows []Metr
 	if len(rows) == 0 {
 		return nil
 	}
-	batch, err := s.conn.PrepareBatch(ctx, "INSERT INTO otel_metric_metadata")
+	// Explicit column list, omitting CreatedAt: PrepareBatch with a bare
+	// "INSERT INTO table" expects a value for every column including ones
+	// with a DEFAULT expression, so leaving CreatedAt out of the column list
+	// is what lets ClickHouse apply DEFAULT now() instead of erroring on an
+	// arg-count mismatch.
+	batch, err := s.conn.PrepareBatch(ctx, `INSERT INTO otel_metric_metadata (
+       MetricID, MetricType, ServiceName, MetricName, MetricDescription, MetricUnit,
+       ResourceAttributes, ResourceSchemaUrl, ScopeName, ScopeVersion, ScopeAttributes,
+       ScopeDroppedAttrCount, ScopeSchemaUrl, Attributes, AggregationTemporality,
+       IsMonotonic, FirstSeenTimeUnix
+   )`)
 	if err != nil {
 		return fmt.Errorf("preparing metadata batch: %w", err)
 	}
